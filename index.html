@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi POS Celular</title>
+    <!-- Incluimos la librería para escanear códigos de barras con la cámara -->
+    <script src="https://unpkg.com"></script>
+    <style>
+        body { font-family: sans-serif; margin: 15px; background: #f4f6f9; color: #333; }
+        h1, h2 { color: #2c3e50; }
+        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        input, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; border-radius: 5px; border: 1px solid #ccc; }
+        button { background: #27ae60; color: white; font-weight: bold; cursor: pointer; border: none; }
+        button.scan-btn { background: #3498db; }
+        button.delete-btn { background: #c0392b; width: auto; padding: 5px 10px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f2f2f2; }
+        #reader { width: 100%; max-width: 400px; margin: auto; }
+    </style>
+</head>
+<body>
+
+    <h1>🏪 Mi Punto de Venta (POS)</h1>
+    
+    <!-- Sección de Resumen Financiero -->
+    <div class="card">
+        <h2>📊 Resumen de Ganancias</h2>
+        <p><strong>Total Invertido (Costos):</strong> $<span id="total-costo">0</span></p>
+        <p><strong>Total Ventas Esperadas:</strong> $<span id="total-venta">0</span></p>
+        <p><strong>Ganancia Total Estimada:</strong> $<span id="total-ganancia" style="color: green;">0</span></p>
+    </div>
+
+    <!-- Formulario para Agregar Productos -->
+    <div class="card">
+        <h2>📦 Registrar Producto</h2>
+        <button class="scan-btn" onclick="encenderCamara()">📷 Escanear Código con Cámara</button>
+        <div id="reader" style="display:none;"></div>
+        
+        <input type="text" id="codigo" placeholder="Código de barras del producto">
+        <input type="text" id="nombre" placeholder="Nombre del producto">
+        <input type="number" id="costo" placeholder="¿Cuánto te costó? (Costo)">
+        <input type="number" id="venta" placeholder="¿A cuánto lo vendes? (Precio Venta)">
+        <button onclick="guardarProducto()">💾 Guardar Producto</button>
+    </div>
+
+    <!-- Historial e Inventario -->
+    <div class="card">
+        <h2>📜 Historial de Productos</h2>
+        <div style="overflow-x:auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Costo</th>
+                        <th>Venta</th>
+                        <th>Ganancia</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-productos">
+                    <!-- Los productos se cargarán aquí -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let productos = JSON.parse(localStorage.getItem('mis_productos')) || [];
+        let html5QrcodeScanner;
+
+        function actualizarPantalla() {
+            const tabla = document.getElementById('tabla-productos');
+            tabla.innerHTML = '';
+            
+            let tCosto = 0;
+            let tVenta = 0;
+            let tGanancia = 0;
+
+            productos.forEach((p, index) => {
+                let gananciaIndividual = p.venta - p.costo;
+                tCosto += Number(p.costo);
+                tVenta += Number(p.venta);
+                tGanancia += gananciaIndividual;
+
+                tabla.innerHTML += `
+                    <tr>
+                        <td>${p.codigo}</td>
+                        <td>${p.nombre}</td>
+                        <td>$${p.costo}</td>
+                        <td>$${p.venta}</td>
+                        <td style="color: green; font-weight: bold;">$${gananciaIndividual}</td>
+                        <td><button class="delete-btn" onclick="eliminarProducto(${index})">❌</button></td>
+                    </tr>
+                `;
+            });
+
+            document.getElementById('total-costo').innerText = tCosto;
+            document.getElementById('total-venta').innerText = tVenta;
+            document.getElementById('total-ganancia').innerText = tGanancia;
+        }
+
+        function guardarProducto() {
+            const codigo = document.getElementById('codigo').value;
+            const nombre = document.getElementById('nombre').value;
+            const costo = document.getElementById('costo').value;
+            const venta = document.getElementById('venta').value;
+
+            if(!codigo || !nombre || !costo || !venta) {
+                alert('Por favor, llena todos los campos');
+                return;
+            }
+
+            productos.push({ codigo, nombre, costo, venta });
+            localStorage.setItem('mis_productos', JSON.stringify(productos));
+            
+            // Limpiar formulario
+            document.getElementById('codigo').value = '';
+            document.getElementById('nombre').value = '';
+            document.getElementById('costo').value = '';
+            document.getElementById('venta').value = '';
+
+            actualizarPantalla();
+        }
+
+        function eliminarProducto(index) {
+            productos.splice(index, 1);
+            localStorage.setItem('mis_productos', JSON.stringify(productos));
+            actualizarPantalla();
+        }
+
+        function encenderCamara() {
+            document.getElementById('reader').style.display = 'block';
+            html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+            html5QrcodeScanner.render(onScanSuccess);
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            document.getElementById('codigo').value = decodedText;
+            html5QrcodeScanner.clear();
+            document.getElementById('reader').style.display = 'none';
+            
+            // Alerta visual de que funcionó
+            alert("Código escaneado: " + decodedText);
+        }
+
+        // Cargar datos al abrir la app
+        actualizarPantalla();
+    </script>
+</body>
+</html>
