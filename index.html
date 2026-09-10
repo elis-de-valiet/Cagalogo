@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mi Sistema POS Avanzado</title>
+<script src="https://unpkg.com" type="text/javascript"></script>
+<style>
+body { font-family: Arial, sans-serif; margin: 15px; background-color: #f4f4f9; color: #333; }
+h1, h2 { text-align: center; color: #2c3e50; margin-bottom: 5px; }
+.seccion { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; }
+input, button { width: 100%; padding: 12px; margin: 5px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+
+/* Botones de Colores */
+.btn-verde { background-color: #27ae60; color: white; border: none; font-weight: bold; cursor: pointer; }
+.btn-verde:hover { background-color: #219150; }
+.btn-azul { background-color: #2980b9; color: white; border: none; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
+.btn-borrar { background-color: #c0392b; width: auto; padding: 5px 10px; margin: 0; color: white; border: none; border-radius: 4px; }
+
+/* Caja de Cámara y Carrito */
+.camara-box { background-color: #e8f8f5; border: 2px dashed #2ecc71; text-align: center; }
+#lector-camara { width: 100%; max-width: 400px; margin: 10px auto; display: none; background: #000; border-radius: 8px; overflow: hidden; }
+.carrito-box { background-color: #fef9e7; border: 2px solid #f1c40f; }
+
+/* Listas */
+ul { list-style-type: none; padding: 0; }
+li { background: #fdfefe; padding: 12px; margin-bottom: 6px; border-radius: 4px; border-left: 5px solid #2980b9; display: flex; justify-content: space-between; align-items: center; }
+
+/* Semáforo de Stock /
+.stock-alto { border-left: 6px solid #27ae60; background-color: #e8f8f5; } / Verde /
+.stock-bajo { border-left: 6px solid #f1c40f; background-color: #fef9e7; } / Amarillo (Poco stock) /
+.stock-agotado { border-left: 6px solid #e74c3c; background-color: #fce4d6; } / Rojo (Agotado) */
+
+.historial-item { border-left: 5px solid #8e44ad; }
+.totales-caja { background: #ebf5fb; padding: 10px; border-radius: 6px; margin-top: 10px; font-weight: bold; font-size: 15px; }
+</style>
+</head>
+<body>
+
+<h1>📦 Mi POS Inteligente</h1>
+
+<!-- 1. ESCÁNER CON CÁMARA -->
+<div class="seccion camara-box">
+<h2>📷 Escáner de Barra</h2>
+<button class="btn-azul" id="btn-encender">Encender Cámara</button>
+<div id="lector-camara"></div>
+<input type="text" id="codigo-manual" placeholder="O escribe el código y presiona Enter...">
+</div>
+
+<!-- 2. CARRITO DE COMPRAS -->
+<div class="seccion carrito-box">
+<h2>🛒 Carrito de Venta Actual</h2>
+<ul id="lista-carrito"></ul>
+<div class="totales-caja" id="total-carrito">Total de esta cuenta: $`0.00</div>
+<button class="btn-verde" id="btn-pagar" style="margin-top: 10px;">💵 Registrar como Pagado</button>
+</div>
+
+<!-- 3. REGISTRAR NUEVOS PRODUCTOS -->
+<div class="seccion">
+<h2>➕ Agregar al Catálogo</h2>
+<form id="form-producto">
+<input type="text" id="prod-codigo" placeholder="Código de barra" required>
+<input type="text" id="prod-nombre" placeholder="Nombre del producto" required>
+<input type="number" id="prod-costo" placeholder="Precio de Costo (Lo que te costó a ti)" step="0.01" required>
+<input type="number" id="prod-precio" placeholder="Precio de Venta (Al cliente)" step="0.01" required>
+<input type="number" id="prod-stock" placeholder="Cantidad disponible (Stock)" required>
+<button class="btn-verde" type="submit">Guardar en Inventario</button>
+</form>
+</div>
+
+<!-- 4. BUSCADOR E INVENTARIO -->
+<div class="seccion">
+<h2>📋 Inventario Actual</h2>
+<input type="text" id="buscador" placeholder="🔍 Buscar por nombre o código...">
+<ul id="lista-productos"></ul>
+</div>
+
+<!-- 5. HISTORIAL DE VENTAS DEL DÍA -->
+<div class="seccion">
+<h2>📜 Ventas del Día</h2>
+<div class="totales-caja" id="caja-ganancias" style="background-color: #eaf2f8; margin-bottom: 10px; color: #1b4f72;">
+💰 Total Vendido Hoy: $0.00 &lt;br&gt; 📈 Ganancia Neta Hoy: $0.00
+</div>
+<ul id="lista-historial"></ul>
+</div>
+
+<!-- AUDIO DE BIP -->
+<audio id="audio-bip" src="https://fesliyanstudios.com" preload="auto"></audio>
+
+<script>
+// Cargar datos
+let productos = JSON.parse(localStorage.getItem('pos_prod_v2')) || [];
+let historial = JSON.parse(localStorage.getItem('pos_hist_v2')) || [];
+let carrito = [];
+
+const listaProd = document.getElementById('lista-productos');
+const listaHist = document.getElementById('lista-historial');
+const listaCarrito = document.getElementById('lista-carrito');
+const buscador = document.getElementById('buscador');
+const inputManual = document.getElementById('codigo-manual');
+const divLector = document.getElementById('lector-camara');
+const btnEncender = document.getElementById('btn-encender');
+const audioBip = document.getElementById('audio-bip');
+
+function reproducirBip() {
+audioBip.currentTime = 0;
+audioBip.play().catch(e => {});
+}
+
+// MOSTRAR EN PANTALLA
+function actualizarPantalla() {
+// Inventario con Semáforo
+listaProd.innerHTML = '';
+const filtro = buscador.value.toLowerCase();
+
+productos.forEach((p, index) => {
+if (p.nombre.toLowerCase().includes(filtro) || p.codigo.includes(filtro)) {
+const li = document.createElement('li');
+
+if (p.stock <= 0) {
+li.className = 'stock-agotado'; // Rojo
+} else if (p.stock <= 3) {
+li.className = 'stock-bajo'; // Amarillo
+} else {
+li.className = 'stock-alto'; // Verde
+}
+
+let gananciaPorUnidad = p.precio - p.costo;
+
+li.innerHTML = &lt;div&gt; &lt;strong&gt;${p.nombre}</strong> <small>( {p.costo} | Venta:  {p.stock}</b> | 📈 Gana:  {index})">Eliminar</button>
+`;
+listaProd.appendChild(li);
+}
+});
+
+// Carrito Temporal
+listaCarrito.innerHTML = '';
+let totalCart = 0;
+carrito.forEach((item, index) => {
+totalCart += item.precio * item.cantidad;
+const li = document.createElement('li');
+li.style.borderLeft = "5px solid #f1c40f";
+li.innerHTML = &lt;span&gt;&lt;b&gt;${item.nombre}</b> (x${item.cantidad}) - ${(item.precio * item.cantidad).toFixed(2)}</span>
+<button class="btn-borrar" onclick="quitarDelCarrito(${index})"&gt;❌&lt;/button&gt;;
+listaCarrito.appendChild(li);
+});
+document.getElementById('total-carrito').innerText = Total de esta cuenta: ${totalCart.toFixed(2)}`;
+
+// Historial y Ganancias
+listaHist.innerHTML = '';
+let totalVendidoDia = 0;
+let totalGananciaDia = 0;
+
+historial.slice().reverse().forEach(venta => {
+totalVendidoDia += venta.totalCuenta;
+totalGananciaDia += venta.totalGanancia;
+
+const li = document.createElement('li');
+li.className = 'historial-item';
+
+let detallesProductos = venta.items.map(i => ``${i.nombre} (x${i.cantidad})).join(', ');
+
+li.innerHTML = &lt;div&gt; &lt;span&gt;🕒${venta.fecha} - <b>Venta Registrada</b></span><br>
+<small style="color:#555;"> {venta.totalCuenta.toFixed(2)}</b> | Ganancia: <span style="color:green">+${venta.totalGanancia.toFixed(2)}&lt;/span&gt;&lt;/span&gt; &lt;/div&gt;;
+listaHist.appendChild(li);
+});
+
+document.getElementById('caja-ganancias').innerHTML = 💰 Total Vendido Hoy: &lt;b&gt;${totalVendidoDia.toFixed(2)}</b> <br>
+📈 Ganancia Neta Hoy: <b>$${totalGananciaDia.toFixed(2)}</b>
+`;
+}
+
+// AGREGAR AL CARRITO
+function agregarAlCarrito(codigoEscaneado) {
+reproducirBip();
+const producto = productos.find(p => p.codigo === codigoEscaneado);
+
+if (producto) {
+const itemEnCarrito = carrito.find(item => item.codigo === codigoEscaneado);
+const cantActual = itemEnCarrito ? itemEnCarrito.cantidad : 0;
+
+if (producto.stock > cantActual) {
+if (itemEnCarrito) {
+itemEnCarrito.cantidad += 1;
+} else {
+carrito.push({
+codigo: producto.codigo,
+nombre: producto.nombre,
+precio: parseFloat(producto.precio),
+costo: parseFloat(producto.costo),
+cantidad: 1
+});
+}
+} else {
+alert(⚠️ Stock insuficiente en inventario para: ${producto.nombre});
+}
+} else {
+alert(❌ Código (${codigoEscaneado}) no encontrado.);
+}
+actualizarPantalla();
+}
+function quitarDelCarrito(index) {
+carrito.splice(index, 1);
+actualizarPantalla();
+}
+// COBRAR CUENTA (RESTA STOCK REAL)
+document.getElementById('btn-pagar').addEventListener('click', () => {
+if (carrito.length === 0) {
+alert("🛒 El carrito está vacío.");
+return;
+}
+let totalCuenta = 0;
+let totalGanancia = 0;
+carrito.forEach(itemCart => {
+const prodReal = productos.find(p => p.codigo === itemCart.codigo);
+if (prodReal) {
+prodReal.stock -= itemCart.cantidad;
+totalCuenta += itemCart.precio * itemCart.cantidad;
+let gananciaItem = (itemCart.precio - itemCart.costo) * itemCart.cantidad;
+totalGanancia += gananciaItem;
+}
+});
+const ahora = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+historial.push({
+fecha: ahora,
+items: [...carrito],
+totalCuenta: totalCuenta,
+totalGanancia: totalGanancia
+});
+carrito = [];
+localStorage.setItem('pos_prod_v2', JSON.stringify(productos));
+localStorage.setItem('pos_hist_v2', JSON.stringify(historial));
+alert("✅ ¡Venta completada con éxito!");
+actualizarPantalla();
+});
+// NUEVO PRODUCTO
+document.getElementById('form-producto').addEventListener('submit', (e) => {
+e.preventDefault();
+productos.push({
+codigo: document.getElementById('prod-codigo').value.trim(),
+nombre: document.getElementById('prod-nombre').value,
+costo: parseFloat(document.getElementById('prod-costo').value),
+precio: parseFloat(document.getElementById('prod-precio').value),
+stock: parseInt(document.getElementById('prod-stock').value)
+});
+localStorage.setItem('pos_prod_v2', JSON.stringify(productos));
+document.getElementById('form-producto').reset();
+actualizarPantalla();
+});
+// ENCENDER CÁMARA
+let html5QrcodeScanner = null;
+let ultimoEscaneo = "";
+btnEncender.addEventListener('click', () => {
+if (divLector.style.display === 'none' || divLector.style.display === '') {
+divLector.style.display = 'block';
+btnEncender.textContent = "🛑 Apagar Cámara";
+html5QrcodeScanner = new Html5Qrcode("lector-camara");
+html5QrcodeScanner.start(
+{ facingMode: "environment" },
+{ fps: 15, qrbox: { width: 250, height: 150 } },
+(decodedText) => {
+if (decodedText.trim() !== ultimoEscaneo) {
+ultimoEscaneo = decodedText.trim();
+agregarAlCarrito(ultimoEscaneo);
+setTimeout(() => { ultimoEscaneo = ""; }, 2000);
+}
+},
+(err) => {}
+).catch(err => { alert("No se pudo activar la cámara."); });
+} else {
+if (html5QrcodeScanner) {
+html5QrcodeScanner.stop().then(() => {
+divLector.style.display = 'none';
+btnEncender.textContent = "📷 Encender Cámara";
+});
+}
+}
+});
+inputManual.addEventListener('keypress', (e) => {
+if (e.key === 'Enter') {
+e.preventDefault();
+agregarAlCarrito(inputManual.value.trim());
+inputManual.value = '';
+}
+});
+function eliminarProducto(index) {
+if(confirm("¿Eliminar este producto del catálogo?")) {
+productos.splice(index, 1);
+localStorage.setItem('pos_prod_v2', JSON.stringify(productos));
+actualizarPantalla();
+}
+}
+buscador.addEventListener('input', actualizarPantalla);
+actualizarPantalla();
