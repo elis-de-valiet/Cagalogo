@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mi POS Celular</title>
-    <!-- LIBRERÍA CORREGIDA AQUÍ -->
+    <!-- Librería oficial y estable para códigos de barras -->
     <script src="https://unpkg.com" type="text/javascript"></script>
     <style>
         body { font-family: sans-serif; margin: 15px; background: #f4f6f9; color: #333; }
@@ -13,11 +13,12 @@
         input, button { width: 100%; padding: 10px; margin: 5px 0; box-sizing: border-box; border-radius: 5px; border: 1px solid #ccc; }
         button { background: #27ae60; color: white; font-weight: bold; cursor: pointer; border: none; }
         button.scan-btn { background: #3498db; }
+        button.stop-btn { background: #e74c3c; display: none; }
         button.delete-btn { background: #c0392b; width: auto; padding: 5px 10px; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background: #f2f2f2; }
-        #reader { width: 100%; max-width: 400px; margin: auto; background: #eee; }
+        #reader { width: 100%; max-width: 400px; margin: 10px auto; background: #000; border-radius: 8px; overflow: hidden; display: none; }
     </style>
 </head>
 <body>
@@ -33,8 +34,11 @@
 
     <div class="card">
         <h2>📦 Registrar Producto</h2>
-        <button class="scan-btn" onclick="encenderCamara()">📷 Escanear Código con Cámara</button>
-        <div id="reader" style="display:none;"></div>
+        <button id="btn-encender" class="scan-btn" onclick="encenderCamara()">📷 Escanear Código con Cámara</button>
+        <button id="btn-apagar" class="stop-btn" onclick="apagarCamara()">🛑 Apagar Cámara</button>
+        
+        <!-- Aquí se verá la cámara del celular -->
+        <div id="reader"></div>
         
         <input type="text" id="codigo" placeholder="Código de barras del producto">
         <input type="text" id="nombre" placeholder="Nombre del producto">
@@ -65,7 +69,7 @@
 
     <script>
         let productos = JSON.parse(localStorage.getItem('mis_productos')) || [];
-        let html5QrcodeScanner;
+        let html5QrCode;
 
         function actualizarPantalla() {
             const tabla = document.getElementById('tabla-productos');
@@ -126,22 +130,52 @@
             actualizarPantalla();
         }
 
+        // --- NUEVO SISTEMA DE CÁMARA DIRECTA ---
         function encenderCamara() {
-            document.getElementById('reader').style.display = 'block';
+            const readerDiv = document.getElementById('reader');
+            readerDiv.style.display = 'block';
             
-            // Creamos el escáner correctamente con la librería arreglada
-            html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-            html5QrcodeScanner.render(onScanSuccess, onScanError);
+            document.getElementById('btn-encender').style.display = 'none';
+            document.getElementById('btn-apagar').style.display = 'block';
+
+            html5QrCode = new Html5Qrcode("reader");
+            
+            // Le pedimos al celular usar la cámara trasera ('environment')
+            html5QrCode.start(
+                { facingMode: "environment" }, 
+                {
+                    fps: 15,
+                    qrbox: { width: 250, height: 150 } // Caja de escaneo optimizada para barras
+                },
+                (decodedText, decodedResult) => {
+                    // Si encuentra un código:
+                    document.getElementById('codigo').value = decodedText;
+                    apagarCamara();
+                    alert("¡Código leído con éxito!");
+                },
+                (errorMessage) => {
+                    // Buscando código activamente...
+                }
+            ).catch((err) => {
+                // Si el celular bloquea el permiso de la cámara:
+                alert("Error al abrir cámara. Asegúrate de dar permisos de cámara a tu navegador en los ajustes del celular.");
+                apagarCamara();
+            });
         }
 
-        function onScanSuccess(decodedText, decodedResult) {
-            document.getElementById('codigo').value = decodedText;
-            html5QrcodeScanner.clear();
-            document.getElementById('reader').style.display = 'none';
-        }
-
-        function onScanError(errorMessage) {
-            // Error silencioso mientras busca códigos en tiempo real
+        function apagarCamara() {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                     Ocultar elementos visuales
+                    document.getElementById('reader').style.display = 'none';
+                    document.getElementById('btn-encender').style.display = 'block';
+                    document.getElementById('btn-apagar').style.display = 'none';
+                }).catch((err) => {
+                    document.getElementById('reader').style.display = 'none';
+                    document.getElementById('btn-encender').style.display = 'block';
+                    document.getElementById('btn-apagar').style.display = 'none';
+                });
+            }
         }
 
         actualizarPantalla();
