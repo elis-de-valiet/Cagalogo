@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mi POS Celular</title>
-    <!-- Incluimos la librería para escanear códigos de barras con la cámara -->
-    <script src="https://unpkg.com"></script>
+    <!-- LIBRERÍA CORREGIDA AQUÍ -->
+    <script src="https://unpkg.com" type="text/javascript"></script>
     <style>
         body { font-family: sans-serif; margin: 15px; background: #f4f6f9; color: #333; }
         h1, h2 { color: #2c3e50; }
@@ -17,14 +17,13 @@
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background: #f2f2f2; }
-        #reader { width: 100%; max-width: 400px; margin: auto; }
+        #reader { width: 100%; max-width: 400px; margin: auto; background: #eee; }
     </style>
 </head>
 <body>
 
     <h1>🏪 Mi Punto de Venta (POS)</h1>
     
-    <!-- Sección de Resumen Financiero -->
     <div class="card">
         <h2>📊 Resumen de Ganancias</h2>
         <p><strong>Total Invertido (Costos):</strong> $<span id="total-costo">0</span></p>
@@ -32,7 +31,6 @@
         <p><strong>Ganancia Total Estimada:</strong> $<span id="total-ganancia" style="color: green;">0</span></p>
     </div>
 
-    <!-- Formulario para Agregar Productos -->
     <div class="card">
         <h2>📦 Registrar Producto</h2>
         <button class="scan-btn" onclick="encenderCamara()">📷 Escanear Código con Cámara</button>
@@ -45,7 +43,6 @@
         <button onclick="guardarProducto()">💾 Guardar Producto</button>
     </div>
 
-    <!-- Historial e Inventario -->
     <div class="card">
         <h2>📜 Historial de Productos</h2>
         <div style="overflow-x:auto;">
@@ -61,7 +58,6 @@
                     </tr>
                 </thead>
                 <tbody id="tabla-productos">
-                    <!-- Los productos se cargarán aquí -->
                 </tbody>
             </table>
         </div>
@@ -116,7 +112,6 @@
             productos.push({ codigo, nombre, costo, venta });
             localStorage.setItem('mis_productos', JSON.stringify(productos));
             
-            // Limpiar formulario
             document.getElementById('codigo').value = '';
             document.getElementById('nombre').value = '';
             document.getElementById('costo').value = '';
@@ -133,20 +128,22 @@
 
         function encenderCamara() {
             document.getElementById('reader').style.display = 'block';
+            
+            // Creamos el escáner correctamente con la librería arreglada
             html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-            html5QrcodeScanner.render(onScanSuccess);
+            html5QrcodeScanner.render(onScanSuccess, onScanError);
         }
 
         function onScanSuccess(decodedText, decodedResult) {
             document.getElementById('codigo').value = decodedText;
             html5QrcodeScanner.clear();
             document.getElementById('reader').style.display = 'none';
-            
-            // Alerta visual de que funcionó
-            alert("Código escaneado: " + decodedText);
         }
 
-        // Cargar datos al abrir la app
+        function onScanError(errorMessage) {
+            // Error silencioso mientras busca códigos en tiempo real
+        }
+
         actualizarPantalla();
     </script>
 </body>
