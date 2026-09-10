@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi POS Inteligente</title>
+    <!-- Cargamos Bootstrap para que los botones y cajas se vean limpios y ordenados -->
+    <link href="https://jsdelivr.net" rel="stylesheet">
+    <style>
+        body { background-color: #f7f8fa; font-family: sans-serif; }
+        .pos-section {
+            background: #fff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .sec-scanner { border: 1px dashed #28a745; background-color: #f1f9f3; }
+        .sec-carrito { border: 1px solid #ffc107; background-color: #fffdf5; }
+        .title-sec { text-align: center; font-weight: bold; margin-bottom: 12px; font-size: 1.1rem; }
+    </style>
+</head>
+<body>
+
+<div class="container my-3" style="max-width: 600px;">
+    
+    <!-- Encabezado Principal -->
+    <h5 class="text-center fw-bold mb-3">📦 Mi POS Inteligente</h5>
+
+    <!-- 1. Escáner de Barra -->
+    <div class="pos-section sec-scanner">
+        <div class="title-sec">📷 Escáner de Barra</div>
+        <button class="btn btn-primary w-100 mb-2 fw-bold" onclick="alert('Iniciando cámara... (Aquí conectarías tu librería de escáner)')">Encender Cámara</button>
+        <input type="text" id="scanInput" class="form-control" placeholder="O escribe el código y presiona Enter...">
+    </div>
+
+    <!-- 2. Carrito de Venta Actual -->
+    <div class="pos-section sec-carrito">
+        <div class="title-sec">🛒 Carrito de Venta Actual</div>
+        <p class="small text-muted mb-2">Total de esta cuenta: <strong id="totalCuenta">$0.00</strong></p>
+        <div id="itemsCarrito" class="mb-2 small"></div>
+        <button class="btn btn-success w-100 fw-bold" onclick="registrarPago()">💵 Registrar como Pagado</button>
+    </div>
+
+    <!-- 3. Agregar al Catálogo -->
+    <div class="pos-section">
+        <div class="title-sec">➕ Agregar al Catálogo</div>
+        <div class="mb-2"><input type="text" id="pCodigo" class="form-control form-control-sm" placeholder="Código de barra"></div>
+        <div class="mb-2"><input type="text" id="pNombre" class="form-control form-control-sm" placeholder="Nombre del producto"></div>
+        <div class="mb-2"><input type="number" id="pCosto" class="form-control form-control-sm" placeholder="Precio de Costo"></div>
+        <div class="mb-2"><input type="number" id="pVenta" class="form-control form-control-sm" placeholder="Precio de Venta"></div>
+        <div class="mb-3"><input type="number" id="pStock" class="form-control form-control-sm" placeholder="Cantidad disponible (Stock)"></div>
+        <button class="btn btn-success w-100 btn-sm fw-bold" onclick="guardarInventario()">Guardar en Inventario</button>
+    </div>
+
+    <!-- 4. Inventario Actual -->
+    <div class="pos-section">
+        <div class="title-sec">📋 Inventario Actual</div>
+        <input type="text" class="form-control form-control-sm mb-2" placeholder="🔍 Buscar por nombre o código...">
+        <div id="tablaInventario" class="small text-muted">No hay productos registrados.</div>
+    </div>
+
+    <!-- 5. Ventas del Día -->
+    <div class="pos-section">
+        <div class="title-sec">⏳ Ventas del Día</div>
+        <div class="p-2 bg-light rounded small">
+            <p class="mb-1 text-primary fw-bold">💰 Total Vendido Hoy: <span id="totalVendido">$0.00</span></p>
+            <p class="mb-0 text-success fw-bold">📈 Ganancia Neta Hoy: <span id="gananciaNeta">$0.00</span></p>
+        </div>
+    </div>
+
+</div>
+
+<!-- Lógica del Sistema POS -->
+<script>
+    // Variables para guardar datos en la memoria de la página
+    let inventario = JSON.parse(localStorage.getItem('pos_inventario')) || {};
+    let carrito = [];
+    let totalVendidoHoy = parseFloat(localStorage.getItem('pos_total_vendido')) || 0;
+    let gananciaHoy = parseFloat(localStorage.getItem('pos_ganancia')) || 0;
+
+    // Actualizar datos visuales al cargar la página
+    actualizarPantalla();
+
+    function guardarInventario() {
+        const cod = document.getElementById('pCodigo').value.strip || document.getElementById('pCodigo').value;
+        const nom = document.getElementById('pNombre').value;
+        const costo = parseFloat(document.getElementById('pCosto').value);
+        const venta = parseFloat(document.getElementById('pVenta').value);
+        const stock = parseInt(document.getElementById('pStock').value);
+
+        if(!cod || !nom || isNaN(costo) || isNaN(venta) || isNaN(stock)) {
+            alert("Por favor, completa todos los campos correctamente.");
+            return;
+        }
+
+        inventario[cod] = { nom, costo, venta, stock };
+        localStorage.setItem('pos_inventario', JSON.stringify(inventario));
+        alert("Producto guardado con éxito.");
+        
+        // Limpiar formulario
+        document.getElementById('pCodigo').value = '';
+        document.getElementById('pNombre').value = '';
+        document.getElementById('pCosto').value = '';
+        document.getElementById('pVenta').value = '';
+        document.getElementById('pStock').value = '';
+        
+        actualizarPantlayer();
+    }
+
+    // Detectar cuando el cajero escribe un código y presiona Enter
+    document.getElementById('scanInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            const cod = this.value.trim();
+            if (inventario[cod]) {
+                if(inventario[cod].stock > 0) {
+                    carrito.push({cod, ...inventario[cod]});
+                    inventario[cod].stock--;
+                    actualizarPantalla();
+                } else {
+                    alert("¡Producto sin stock!");
+                }
+            } else {
+                alert("Código no encontrado en el catálogo.");
+            }
+            this.value = '';
+        }
+    });
+
+    function registrarPago() {
+        if(carrito.length === 0) {
+            alert("El carrito está vacío.");
+            return;
+        }
+        
+        let cuentaTotal = 0;
+        let costoTotal = 0;
+        
+        carrito.forEach(item => {
+            cuentaTotal += item.venta;
+            costoTotal += item.costo;
+        });
+
+        totalVendidoHoy += cuentaTotal;
+        gananciaHoy += (cuentaTotal - costoTotal);
+
+        // Guardar permanentemente en el navegador
+        localStorage.setItem('pos_total_vendido', totalVendidoHoy);
+        localStorage.setItem('pos_ganancia', gananciaHoy);
+        localStorage.setItem('pos_inventario', JSON.stringify(inventario));
+
+        alert(`¡Venta Procesada con éxito por $${cuentaTotal.toFixed(2)}!`);
+        carrito = [];
+        actualizarPantalla();
+    }
+
+    function actualizarPantalla() {
+        // Mostrar Ventas Totales
+        document.getElementById('totalVendido').innerText = `$${totalVendidoHoy.toFixed(2)}`;
+        document.getElementById('gananciaNeta').innerText = `$${gananciaHoy.toFixed(2)}`;
+
+        // Mostrar Lista del Carrito Actual
+        let totalC = 0;
+        let htmlCarrito = "";
+        carrito.forEach(item => {
+            totalC += item.venta;
+            htmlCarrito += `• ${item.nom} - $${item.venta.toFixed(2)}<br>`;
+        });
+        document.getElementById('totalCuenta').innerText = `$${totalC.toFixed(2)}`;
+        document.getElementById('itemsCarrito').innerHTML = htmlCarrito || "Ningún producto seleccionado.";
+
+        // Mostrar Catálogo en la tabla inferior
+        let htmlInv = '<ul class="list-group list-group-flush">';
+        let conDatos = false;
+        for(let c in inventario){
+            conDatos = true;
+            htmlInv += `<li class="list-group-item d-flex justify-content-between align-items-center p-1 fs-7">
+                ${c} - ${inventario[c].nom} ($${inventario[c].venta}) 
+                <span class="badge bg-secondary rounded-pill">Stock: ${inventario[c].stock}</span>
+            </li>`;
+        }
+        htmlInv += '</ul>';
+        document.getElementById('tablaInventario').innerHTML = conDatos ? htmlInv : "No hay productos registrados.";
+    }
+</script>
+</body>
+</html>
