@@ -3,34 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mi POS Inteligente</title>
-    <!-- Cargamos Bootstrap para que los botones y cajas se vean limpios y ordenados -->
+    <title>Mi POS Inteligente con Cámara</title>
+    <!-- Diseño limpio con Bootstrap -->
     <link href="https://jsdelivr.net" rel="stylesheet">
+    <!-- Librería para escanear códigos de barras -->
+    <script src="https://unpkg.com" type="text/javascript"></script>
     <style>
         body { background-color: #f7f8fa; font-family: sans-serif; }
         .pos-section {
-            background: #fff;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 15px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            background: #fff; border-radius: 8px; padding: 15px;
+            margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
         .sec-scanner { border: 1px dashed #28a745; background-color: #f1f9f3; }
         .sec-carrito { border: 1px solid #ffc107; background-color: #fffdf5; }
         .title-sec { text-align: center; font-weight: bold; margin-bottom: 12px; font-size: 1.1rem; }
+        #reader { width: 100%; background: #000; border-radius: 4px; overflow: hidden; display: none; }
     </style>
 </head>
 <body>
 
 <div class="container my-3" style="max-width: 600px;">
     
-    <!-- Encabezado Principal -->
     <h5 class="text-center fw-bold mb-3">📦 Mi POS Inteligente</h5>
 
     <!-- 1. Escáner de Barra -->
     <div class="pos-section sec-scanner">
         <div class="title-sec">📷 Escáner de Barra</div>
-        <button class="btn btn-primary w-100 mb-2 fw-bold" onclick="alert('Iniciando cámara... (Aquí conectarías tu librería de escáner)')">Encender Cámara</button>
+        <button id="btnCamara" class="btn btn-primary w-100 mb-2 fw-bold" onclick="alternarCamara()">Encender Cámara</button>
+        <div id="reader" class="mb-2"></div>
         <input type="text" id="scanInput" class="form-control" placeholder="O escribe el código y presiona Enter...">
     </div>
 
@@ -71,117 +71,166 @@
 
 </div>
 
-<!-- Lógica del Sistema POS -->
-<script>
-    // Variables para guardar datos en la memoria de la página
-    let inventario = JSON.parse(localStorage.getItem('pos_inventario')) || {};
-    let carrito = [];
-    let totalVendidoHoy = parseFloat(localStorage.getItem('pos_total_vendido')) || 0;
-    let gananciaHoy = parseFloat(localStorage.getItem('pos_ganancia')) || 0;
-
-    // Actualizar datos visuales al cargar la página
-    actualizarPantalla();
-
-    function guardarInventario() {
-        const cod = document.getElementById('pCodigo').value.strip || document.getElementById('pCodigo').value;
-        const nom = document.getElementById('pNombre').value;
-        const costo = parseFloat(document.getElementById('pCosto').value);
-        const venta = parseFloat(document.getElementById('pVenta').value);
-        const stock = parseInt(document.getElementById('pStock').value);
-
-        if(!cod || !nom || isNaN(costo) || isNaN(venta) || isNaN(stock)) {
-            alert("Por favor, completa todos los campos correctamente.");
-            return;
-        }
-
-        inventario[cod] = { nom, costo, venta, stock };
-        localStorage.setItem('pos_inventario', JSON.stringify(inventario));
-        alert("Producto guardado con éxito.");
-        
-        // Limpiar formulario
-        document.getElementById('pCodigo').value = '';
-        document.getElementById('pNombre').value = '';
-        document.getElementById('pCosto').value = '';
-        document.getElementById('pVenta').value = '';
-        document.getElementById('pStock').value = '';
-        
-        actualizarPantlayer();
-    }
-
-    // Detectar cuando el cajero escribe un código y presiona Enter
-    document.getElementById('scanInput').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            const cod = this.value.trim();
-            if (inventario[cod]) {
-                if(inventario[cod].stock > 0) {
-                    carrito.push({cod, ...inventario[cod]});
-                    inventario[cod].stock--;
-                    actualizarPantalla();
-                } else {
-                    alert("¡Producto sin stock!");
-                }
-            } else {
-                alert("Código no encontrado en el catálogo.");
-            }
-            this.value = '';
-        }
-    });
-
-    function registrarPago() {
-        if(carrito.length === 0) {
-            alert("El carrito está vacío.");
-            return;
-        }
-        
-        let cuentaTotal = 0;
-        let costoTotal = 0;
-        
-        carrito.forEach(item => {
-            cuentaTotal += item.venta;
-            costoTotal += item.costo;
-        });
-
-        totalVendidoHoy += cuentaTotal;
-        gananciaHoy += (cuentaTotal - costoTotal);
-
-        // Guardar permanentemente en el navegador
-        localStorage.setItem('pos_total_vendido', totalVendidoHoy);
-        localStorage.setItem('pos_ganancia', gananciaHoy);
-        localStorage.setItem('pos_inventario', JSON.stringify(inventario));
-
-        alert(`¡Venta Procesada con éxito por $${cuentaTotal.toFixed(2)}!`);
-        carrito = [];
-        actualizarPantalla();
-    }
-
-    function actualizarPantalla() {
-        // Mostrar Ventas Totales
-        document.getElementById('totalVendido').innerText = `$${totalVendidoHoy.toFixed(2)}`;
-        document.getElementById('gananciaNeta').innerText = `$${gananciaHoy.toFixed(2)}`;
-
-        // Mostrar Lista del Carrito Actual
-        let totalC = 0;
-        let htmlCarrito = "";
-        carrito.forEach(item => {
-            totalC += item.venta;
-            htmlCarrito += `• ${item.nom} - $${item.venta.toFixed(2)}<br>`;
-        });
-        document.getElementById('totalCuenta').innerText = `$${totalC.toFixed(2)}`;
-        document.getElementById('itemsCarrito').innerHTML = htmlCarrito || "Ningún producto seleccionado.";
-
-        // Mostrar Catálogo en la tabla inferior
-        let htmlInv = '<ul class="list-group list-group-flush">';
-        let conDatos = false;
-        for(let c in inventario){
-            conDatos = true;
-            htmlInv += `<li class="list-group-item d-flex justify-content-between align-items-center p-1 fs-7">
-                ${c} - ${inventario[c].nom} ($${inventario[c].venta}) 
-                <span class="badge bg-secondary rounded-pill">Stock: ${inventario[c].stock}</span>
-            </li>`;
-        }
-        htmlInv += '</ul>';
-        document.getElementById('tablaInventario').innerHTML = conDatos ? htmlInv : "No hay productos registrados.";
-    }
-</script>
+<!-- Conectamos la segunda parte (el cerebro) aquí -->
+<script src="app.js"></script>
 </body>
 </html>
+// Variables del sistema y almacenamiento local
+let inventario = JSON.parse(localStorage.getItem('pos_inventario')) || {};
+let carrito = [];
+let totalVendidoHoy = parseFloat(localStorage.getItem('pos_total_vendido')) || 0;
+let gananciaHoy = parseFloat(localStorage.getItem('pos_ganancia')) || 0;
+
+let html5QrcodeScanner = null;
+let camaraEncendida = false;
+
+// Iniciar los datos en pantalla
+actualizarPantalla();
+
+// Encender y apagar cámara
+function alternarCamara() {
+    const readerDiv = document.getElementById('reader');
+    const btn = document.getElementById('btnCamara');
+
+    if (!camaraEncendida) {
+        readerDiv.style.display = "block";
+        btn.innerText = "Apagar Cámara";
+        btn.classList.replace('btn-primary', 'btn-danger');
+        
+        html5QrcodeScanner = new Html5Qrcode("reader");
+        html5QrcodeScanner.start(
+            { facingMode: "environment" }, 
+            { fps: 10, qrbox: { width: 250, height: 150 } },
+            onScanSuccess
+        ).catch(err => {
+            alert("Error de cámara. Recuerda usar HTTPS en GitHub Pages.");
+            apagarCamaraVisual();
+        });
+        camaraEncendida = true;
+    } else {
+        apagarCamaraCompleto();
+    }
+}
+
+function apagarCamaraCompleto() {
+    if (html5QrcodeScanner) {
+        html5QrcodeScanner.stop().then(() => {
+            apagarCamaraVisual();
+        }).catch(err => console.error(err));
+    }
+}
+
+function apagarCamaraVisual() {
+    document.getElementById('reader').style.display = "none";
+    const btn = document.getElementById('btnCamara');
+    btn.innerText = "Encender Cámara";
+    btn.classList.replace('btn-danger', 'btn-primary');
+    camaraEncendida = false;
+}
+
+// Cuando detecta un código de barras
+function onScanSuccess(decodedText) {
+    procesarCodigo(decodedText.trim());
+    if (navigator.vibrate) navigator.vibrate(100);
+}
+
+function procesarCodigo(cod) {
+    if (inventario[cod]) {
+        if(inventario[cod].stock > 0) {
+            carrito.push({cod, ...inventario[cod]});
+            inventario[cod].stock--;
+            actualizarPantalla();
+        } else {
+            alert(`¡${inventario[cod].nom} no tiene stock!`);
+        }
+    } else {
+        alert(`Código [${cod}] no registrado.`);
+    }
+}
+
+// Lector por teclado manual
+document.getElementById('scanInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        procesarCodigo(this.value.trim());
+        this.value = '';
+    }
+});
+
+// Guardar nuevos productos
+function guardarInventario() {
+    const cod = document.getElementById('pCodigo').value.trim();
+    const nom = document.getElementById('pNombre').value;
+    const costo = parseFloat(document.getElementById('pCosto').value);
+    const venta = parseFloat(document.getElementById('pVenta').value);
+    const stock = parseInt(document.getElementById('pStock').value);
+
+    if(!cod || !nom || isNaN(costo) || isNaN(venta) || isNaN(stock)) {
+        alert("Completa todos los campos correctamente.");
+        return;
+    }
+
+    inventario[cod] = { nom, costo, venta, stock };
+    localStorage.setItem('pos_inventario', JSON.stringify(inventario));
+    
+    document.getElementById('pCodigo').value = '';
+    document.getElementById('pNombre').value = '';
+    document.getElementById('pCosto').value = '';
+    document.getElementById('pVenta').value = '';
+    document.getElementById('pStock').value = '';
+    
+    actualizarPantalla();
+}
+
+// Registrar cobro
+function registrarPago() {
+    if(carrito.length === 0) {
+        alert("El carrito está vacío.");
+        return;
+    }
+    
+    let cuentaTotal = 0;
+    let costoTotal = 0;
+    
+    carrito.forEach(item => {
+        cuentaTotal += item.venta;
+        costoTotal += item.costo;
+    });
+
+    totalVendidoHoy += cuentaTotal;
+    gananciaHoy += (cuentaTotal - costoTotal);
+
+    localStorage.setItem('pos_total_vendido', totalVendidoHoy);
+    localStorage.setItem('pos_ganancia', gananciaHoy);
+    localStorage.setItem('pos_inventario', JSON.stringify(inventario));
+
+    alert(`¡Venta Procesada por $${cuentaTotal.toFixed(2)}!`);
+    carrito = [];
+    actualizarPantalla();
+}
+
+// Refrescar los elementos visuales
+function actualizarPantalla() {
+    document.getElementById('totalVendido').innerText = `$${totalVendidoHoy.toFixed(2)}`;
+    document.getElementById('gananciaNeta').innerText = `$${gananciaHoy.toFixed(2)}`;
+
+    let totalC = 0;
+    let htmlCarrito = "";
+    carrito.forEach(item => {
+        totalC += item.venta;
+        htmlCarrito += `• ${item.nom} - $${item.venta.toFixed(2)}<br>`;
+    });
+    document.getElementById('totalCuenta').innerText = `$${totalC.toFixed(2)}`;
+    document.getElementById('itemsCarrito').innerHTML = htmlCarrito || "Ningún producto seleccionado.";
+
+    let htmlInv = '<ul class="list-group list-group-flush">';
+    let conDatos = false;
+    for(let c in inventario){
+        conDatos = true;
+        htmlInv += `<li class="list-group-item d-flex justify-content-between align-items-center p-1 fs-7">
+            <strong>${c}</strong> - ${inventario[c].nom} ($${inventario[c].venta}) 
+            <span class="badge bg-secondary rounded-pill">Stock: ${inventario[c].stock}</span>
+        </li>`;
+    }
+    htmlInv += '</ul>';
+    document.getElementById('tablaInventario').innerHTML = conDatos ? htmlInv : "No hay productos registrados.";
+}
